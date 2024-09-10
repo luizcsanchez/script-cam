@@ -1,0 +1,15 @@
+{
+  "name": "script-cam",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npx src/script.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "puppeteer": "^23.3.0"
+  }
+}
