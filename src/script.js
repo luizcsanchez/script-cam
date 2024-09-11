@@ -1,14 +1,15 @@
 const puppeteer = require("puppeteer");
 const fs = require("fs");
 
-const cams = JSON.parse(fs.readFileSync("cams.json"));
+const cams = JSON.parse(fs.readFileSync("src/db/cams.json"));
 
 (async () => {
   for (const cam of cams) {
+    let browser;
     try {
       console.log(`Acessando câmera: ${cam.ip} (${cam.brand})`);
 
-      const browser = await puppeteer.launch({ headless: false });
+      browser = await puppeteer.launch({ headless: false });
       const page = await browser.newPage();
 
       await page.authenticate({
@@ -16,99 +17,197 @@ const cams = JSON.parse(fs.readFileSync("cams.json"));
         password: cam.password,
       });
 
-      await page.goto(cam.ip, { waitUntil: "networkidle2" });
-
-      const pageTitle = await page.title();
-      console.log(`Título da página: ${pageTitle}`);
-
+      console.log(`Verificando dados da câmera:`, cam);
       if (cam.brand === "axis") {
-        // Execução para Axis
         await accessAxisCam(page);
       } else if (cam.brand === "wisenet") {
-        // Execução para Wisenet
-        await accessWisenetCam(page);
+        await accessWisenetCam(page, cam.ip); // Passando o IP da câmera
       }
-
-      // Fecha o navegador após as operações
-      await browser.close();
     } catch (error) {
       console.error(`Erro ao acessar a câmera ${cam.ip}:`, error);
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
     }
   }
 })();
 
-// Função para acessar câmeras Axis
+async function clickSelector(page, selector) {
+  return page.evaluate(async (selector) => {
+    const element = document.querySelector(selector);
+    if (element) {
+      element.click();
+      return true;
+    }
+    return false;
+  }, selector);
+}
+
 async function accessAxisCam(page) {
   console.log("Executando script para câmera Axis");
-  // Espera o botão de configurações estar visível e clica
-  await page.waitForXPath('//*[@id="settings-toggle-up"]');
-  const [settingsButton] = await page.$x('//*[@id="settings-toggle-up"]');
-  if (settingsButton) {
-    await settingsButton.click();
+
+  const axisUrl = `http://${camIp}`;
+
+  try {
+    await page.goto(wisenetUrl, { waitUntil: "networkidle2", timeout: 60000 });
+    console.log(
+      `Acessou a página de configuração da câmera Wisenet (${camIp}) com sucesso!`
+    );
+  } catch (err) {
+    console.error(
+      `Erro ao navegar para a URL Wisenet (${camIp}): ${err.message}`
+    );
+    return;
+  }
+
+  await page.waitForSelector("a#settings-toggle-up", {
+    visible: true,
+    timeout: 60000,
+  });
+  const foundSettings = await clickSelector(page, "a#settings-toggle-up");
+  if (foundSettings) {
     console.log("Cliquei no botão de Configurações com sucesso!");
   } else {
     console.log("O botão de Configurações não foi encontrado.");
   }
 
-  // Espera o botão de Overlay e clica
-  await page.waitForXPath('//*[@id="overlayMenuItem"]/a');
-  const [overlayButton] = await page.$x('//*[@id="overlayMenuItem"]/a');
-  if (overlayButton) {
-    await overlayButton.click();
+  await page.waitForSelector("#overlayMenuItem > a", {
+    visible: true,
+    timeout: 60000,
+  });
+  const foundOverlay = await clickSelector(page, "#overlayMenuItem > a");
+  if (foundOverlay) {
     console.log("Cliquei no botão de Overlay com sucesso!");
   } else {
     console.log("O botão de Overlay não foi encontrado.");
   }
 
-  // Espera o botão de data e hora e clica
-  await page.waitForXPath('//*[@id="overlayPanel"]/div/div[1]/div/div/a[1]');
-  const [dateAndHourButton] = await page.$x(
-    '//*[@id="overlayPanel"]/div/div[1]/div/div/a[1]'
+  await page.waitForSelector(
+    "#overlayPanel > div > div.carousel-outer > div > div > a:nth-child(1)",
+    { visible: true, timeout: 60000 }
   );
-  if (dateAndHourButton) {
-    await dateAndHourButton.click();
+  const foundDataAndHour = await clickSelector(
+    page,
+    "#overlayPanel > div > div.carousel-outer > div > div > a:nth-child(1)"
+  );
+  if (foundDataAndHour) {
     console.log("Cliquei no botão de data e hora com sucesso!");
   } else {
     console.log("O botão de data e hora não foi encontrado.");
   }
 
-  // Espera o botão de data e hora ativo e clica
-  await page.waitForXPath('//*[@id="overlayPanel"]/div/div[1]/div/div/a[2]');
-  const [dateAndHourActiveButton] = await page.$x(
-    '//*[@id="overlayPanel"]/div/div[1]/div/div/a[2]'
-  );
-  if (dateAndHourActiveButton) {
-    await dateAndHourActiveButton.click();
+  // Clique no botão de Data e Hora Ativo
+  const foundDateAndHourActive = await page.evaluate(() => {
+    const buttons = Array.from(
+      document.querySelectorAll("a.component-icon.icon-state")
+    );
+    for (const button of buttons) {
+      if (button.textContent.includes("Texto")) {
+        // Ajuste o texto conforme necessário
+        button.click();
+        return true;
+      }
+    }
+    return false;
+  });
+  if (foundDateAndHourActive) {
     console.log("Cliquei no botão de data e hora ativo com sucesso!");
   } else {
     console.log("O botão de data e hora ativo não foi encontrado.");
   }
 
-  // Espera o botão de remover e clica
-  await page.waitForXPath(
-    '//*[@id="peripheralWrap"]/div[3]/div/div[2]/button[1]'
+  await page.waitForSelector(
+    "#peripheralWrap > div.editOverlayDialog.dialog > div > div.dialogButtons > button.btn.remove",
+    { visible: true, timeout: 60000 }
   );
-  const [removeButton] = await page.$x(
-    '//*[@id="peripheralWrap"]/div[3]/div/div[2]/button[1]'
+  const foundRemove = await clickSelector(
+    page,
+    "#peripheralWrap > div.editOverlayDialog.dialog > div > div.dialogButtons > button.btn.remove"
   );
-  if (removeButton) {
-    await removeButton.click();
+  if (foundRemove) {
     console.log("Cliquei no botão de remover com sucesso!");
   } else {
     console.log("O botão de remover não foi encontrado.");
   }
 }
 
-// Função para acessar câmeras Wisenet
-async function accessWisenetCam(page) {
+async function accessWisenetCam(page, camIp) {
   console.log("Executando script para câmera Wisenet");
 
-  const [settingsButton] = await page.$x('//*[@id="wisenet-settings-toggle"]');
-  if (settingsButton) {
-    await settingsButton.click();
-    console.log("Cliquei no botão de Configurações (Wisenet) com sucesso!");
-    await page.waitForNavigation({ waitUntil: "networkidle2" });
+  const wisenetUrl = `http://${camIp}/wmf/index.html#/setup/videoAudio_cameraSetup`;
+
+  try {
+    await page.goto(wisenetUrl, { waitUntil: "networkidle2", timeout: 60000 });
+    console.log(
+      `Acessou a página de configuração da câmera Wisenet (${camIp}) com sucesso!`
+    );
+  } catch (err) {
+    console.error(
+      `Erro ao navegar para a URL Wisenet (${camIp}): ${err.message}`
+    );
+    return;
+  }
+
+  await page.waitForSelector(
+    "#camerasetuppage > form > div:nth-child(3) > div > div:nth-child(4) > div > ul > li:nth-child(7) > a",
+    {
+      visible: true,
+      timeout: 60000,
+    }
+  );
+  const foundOsd = await clickSelector(
+    page,
+    "#camerasetuppage > form > div:nth-child(3) > div > div:nth-child(4) > div > ul > li:nth-child(7) > a"
+  );
+  if (foundOsd) {
+    console.log("Cliquei no botão de OSD de Cam com sucesso!");
   } else {
-    console.log("O botão de Configurações (Wisenet) não foi encontrado.");
+    console.log("O botão de OSD de Cam não foi encontrado.");
+  }
+
+  await page.waitForSelector("#DateOSDEnable", {
+    visible: true,
+    timeout: 60000,
+  });
+  const foundCheckBox = await clickSelector(page, "#DateOSDEnable");
+  if (foundCheckBox) {
+    console.log("Cliquei no Check Box de Cam com sucesso!");
+  } else {
+    console.log("O Check Box não foi encontrado.");
+  }
+
+  await page.waitForSelector(
+    "#camerasetuppage > form > div.wn5-setup-common-button > button.btn.cm-btn-point.ng-binding",
+    {
+      visible: true,
+      timeout: 60000,
+    }
+  );
+  const foundAply = await clickSelector(
+    page,
+    "#camerasetuppage > form > div.wn5-setup-common-button > button.btn.cm-btn-point.ng-binding"
+  );
+  if (foundAply) {
+    console.log("Cliquei no botão de aply com sucesso!");
+  } else {
+    console.log("O botão de aply não foi encontrado.");
+  }
+
+  await page.waitForSelector(
+    "body > div.modal.fade.ng-isolate-scope.modal-position-middle.in > div > div > form > div.modal-footer.modal-setup > button.btn.cm-btn-point.ng-binding",
+    {
+      visible: true,
+      timeout: 60000,
+    }
+  );
+  const foundOk = await clickSelector(
+    page,
+    "body > div.modal.fade.ng-isolate-scope.modal-position-middle.in > div > div > form > div.modal-footer.modal-setup > button.btn.cm-btn-point.ng-binding"
+  );
+  if (foundOk) {
+    console.log("Cliquei no botão de OK com sucesso!");
+  } else {
+    console.log("O botão de OK foi encontrado.");
   }
 }
