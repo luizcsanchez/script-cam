@@ -1,0 +1,14 @@
+[
+  {
+    "brand": "aaaa",
+    "ip": "00.000.000.000",
+    "username": "user",
+    "password": "pass"
+  },
+  {
+    "brand": "bbbb",
+    "ip": "00.000.000.000",
+    "username": "user",
+    "password": "pass"
+  }
+]
